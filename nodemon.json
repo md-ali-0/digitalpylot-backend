@@ -1,0 +1,19 @@
+{
+  "watch": ["src"],
+  "ext": "ts,js,json,yaml,yml",
+  "ignore": [
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
+    "dist/",
+    "node_modules/",
+    ".git/",
+    "logs/",
+    "tmp/",
+    "coverage/",
+    "*.log"
+  ],
+  "delay": 1000,
+  "events": {
+    "restart": "clear"
+  }
+}

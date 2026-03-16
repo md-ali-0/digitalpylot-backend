@@ -1,0 +1,21 @@
+model File {
+  id         String     @id @default(uuid())
+  tenantId   String?    @map("tenant_id")
+  filename   String
+  mimeType   String     @map("mime_type")
+  size       BigInt
+  extension  String
+  file_type  String     @map("file_type")
+  path       String     @unique
+  url        String
+  provider   String     @default("LOCAL")
+  visibility String     @default("public")
+  checksum   String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+  uploaderId String?    @map("uploader_id")
+  avatars    User[]
+
+  @@index([tenantId])
+  @@map("files")
+}

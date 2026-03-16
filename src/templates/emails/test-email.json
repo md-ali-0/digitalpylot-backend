@@ -1,0 +1,4 @@
+{
+  "subject": "Test Email System",
+  "template": "<!DOCTYPE html><html><head><title>Test Email</title></head><body><h1>Test Email</h1><p>This is a test email to verify the email system configuration.</p><p>Provider: {{provider}}</p><p>Timestamp: {{timestamp}}</p></body></html>"
+}

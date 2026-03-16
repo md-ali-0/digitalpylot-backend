@@ -1,0 +1,79 @@
+model User {
+  id                String             @id @default(uuid())
+  tenantId          String             @map("tenant_id")
+  email             String
+  passwordHash      String             @map("password_hash")
+  userType          UserRole           @default(USER) @map("user_type")
+  name              String?
+  status            String             @default("ACTIVE")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  deletedAt         DateTime?          @map("deleted_at")
+  avatarFileId      String?            @map("avatar_file_id")
+  emailVerified     Boolean            @default(false) @map("email_verified")
+  facebookId        String?            @unique @map("facebook_id")
+  phone             String?
+  tokenVersion      Int                @default(0) @map("token_version")
+  avatarFile        File?              @relation(fields: [avatarFileId], references: [id])
+
+  // New RBAC relations
+  userRoles UserRoleAssignment[]
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// Dynamic RBAC (Permissions & Policies)
+// -----------------------------------------------------------------------------
+
+model Role {
+  id       String @id @default(uuid())
+  name     String
+  permissions RolePermission[]
+  users       UserRoleAssignment[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId String @map("role_id")
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  permissionId String     @map("permission_id")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRoleAssignment {
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roleId String @map("role_id")
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// Kept for legacy compatibility if needed, but new system uses Role model
+enum UserRole {
+  ADMIN
+  USER
+}
