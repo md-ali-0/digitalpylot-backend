@@ -18,7 +18,7 @@ export const createUserSchema = z.object({
       .min(8, i18n.__('validation.password_min_length', { min: '8' }))
       .max(100, i18n.__('validation.password_max_length', { max: '100' })),
     name: z.string().min(1, i18n.__('validation.name_required')).optional(),
-    role: z.enum(['ADMIN', 'MANAGER', 'AFFILIATE', 'ADVERTISER']).default('AFFILIATE'),
+    role: z.string().min(1, i18n.__('validation.name_required')),
     // Manager specific fields
     monthlyTarget: z.number().optional(),
     commissionType: z.enum(['FIXED', 'PERCENTAGE']).optional(),
@@ -38,7 +38,7 @@ export const updateUserSchema = z.object({
       .optional(),
     name: z.string().min(1, i18n.__('validation.name_required')).optional(),
     phone: z.string().optional(),
-    role: z.enum(['ADMIN', 'MANAGER', 'AFFILIATE', 'ADVERTISER']).optional(),
+    role: z.string().optional(),
     deletedAt: z.string().datetime().nullable().optional(),
     // Manager specific fields
     monthlyTarget: z.number().optional(),
