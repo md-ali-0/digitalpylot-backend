@@ -1,0 +1,78 @@
+model Lead {
+  id           String      @id @default(uuid())
+  tenantId     String      @map("tenant_id") @default("default")
+  firstName    String?     @map("first_name")
+  lastName     String?     @map("last_name")
+  email        String?
+  phone        String?
+  company      String?
+  source       String?
+  status       LeadStatus  @default(NEW)
+  assignedToId String?     @map("assigned_to_id")
+  assignedTo   User?       @relation(fields: [assignedToId], references: [id])
+  metadata     Json?       @map("metadata")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  tasks        Task[]
+
+  @@index([tenantId])
+  @@index([assignedToId])
+  @@map("leads")
+}
+
+model Task {
+  id           String      @id @default(uuid())
+  tenantId     String      @map("tenant_id") @default("default")
+  title        String
+  description  String?
+  status       TaskStatus  @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  dueDate      DateTime?   @map("due_date")
+  assignedToId String?     @map("assigned_to_id")
+  assignedTo   User?       @relation(fields: [assignedToId], references: [id])
+  
+  relatedToType RelatedType? @map("related_to_type")
+  relatedToId   String?      @map("related_to_id")
+  lead          Lead?        @relation(fields: [relatedToId], references: [id], map: "task_lead_fkey")
+
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  @@index([tenantId])
+  @@index([assignedToId])
+  @@index([relatedToId])
+  @@map("tasks")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RelatedType {
+  LEAD
+  USER
+  OTHER
+}

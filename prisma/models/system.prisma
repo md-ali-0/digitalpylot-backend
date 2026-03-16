@@ -1,0 +1,30 @@
+model AuditLog {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id") @default("default")
+  userId       String?  @map("user_id")
+  user         User?    @relation(fields: [userId], references: [id])
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  changes      Json?
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+model UserPermissionGrant {
+  userId         String     @map("user_id")
+  user           User       @relation("UserGrants", fields: [userId], references: [id], onDelete: Cascade)
+  permissionName String     @map("permission_name")
+  grantedById    String?    @map("granted_by")
+  grantedBy      User?      @relation("AdminGrants", fields: [grantedById], references: [id])
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  @@id([userId, permissionName])
+  @@map("user_permission_grants")
+}

@@ -35,12 +35,11 @@ export class SystemRoutes {
     });
 
     // Test Email Route
-    this.router.post('/test-email', authenticate, async (req, res) => {
+    this.router.post('/test-email', authenticate, async (req: any, res: any) => {
       try {
         const { email } = req.body;
         if (!email) {
-          res.status(400).json({ error: 'Email is required' });
-          return;
+          return res.status(400).json({ error: 'Email is required' });
         }
 
         const emailService = (await import('@services/email.service')).default;
@@ -62,9 +61,41 @@ export class SystemRoutes {
           res.status(500).json({ error: 'Failed to send test email' });
         }
       } catch (error) {
-        const logger = (await import('@config/winston')).default;
-        logger.error('Test email error:', error);
         res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Dashboard Statistics
+    this.router.get('/dashboard-stats', authenticate, async (_req, res) => {
+      try {
+        const { DashboardService } = await import('@services/dashboard.service');
+        const stats = await DashboardService.getStatistics();
+        const growth = await DashboardService.getMonthlyGrowth();
+        res.status(200).json({
+          success: true,
+          message: 'Dashboard statistics retrieved',
+          data: { stats, growth },
+        });
+      } catch (_error) {
+        res.status(500).json({ success: false, message: 'Failed to fetch dashboard stats' });
+      }
+    });
+
+    // Reports Analytics
+    this.router.get('/reports', authenticate, async (_req, res) => {
+      try {
+        const { ReportService } = await import('@services/report.service');
+        const [leadPerf, taskAnal] = await Promise.all([
+          ReportService.getLeadPerformance(),
+          ReportService.getTaskAnalytics(),
+        ]);
+        res.status(200).json({
+          success: true,
+          message: 'Reports analytics retrieved',
+          data: { leadPerf, taskAnal },
+        });
+      } catch (_error) {
+        res.status(500).json({ success: false, message: 'Failed to fetch reports' });
       }
     });
 

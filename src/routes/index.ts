@@ -1,8 +1,11 @@
+import env from '@config/env';
 import { AuditLogRoutes } from '@modules/audit-log/audit-log.routes';
 import { AuthRoutes } from '@modules/auth/auth.routes';
 import { FileRoutes } from '@modules/file/file.routes';
+import { LeadRoutes } from '@modules/lead/lead.routes';
 import { PermissionRoutes } from '@modules/permission/permission.routes';
 import { RoleRoutes } from '@modules/role/role.route';
+import { TaskRoutes } from '@modules/task/task.routes';
 import { UserRoutes } from '@modules/user/user.routes';
 import { HealthRoutes } from '@routes/health.routes';
 import { SystemRoutes } from '@routes/system.routes';
@@ -11,7 +14,7 @@ import { Router } from 'express';
 
 export class MainRouter {
   public router: Router;
-  private readonly apiPrefix = '/api/v1';
+  private readonly apiPrefix = env.API_PREFIX || '/api/v1';
 
   constructor() {
     this.router = Router();
@@ -34,10 +37,12 @@ export class MainRouter {
       { path: '/users', handler: new UserRoutes().router },
       { path: '/files', handler: new FileRoutes().router },
 
-      // New Role Modules
+      // CRM & System Modules
       { path: '/roles', handler: new RoleRoutes().router },
       { path: '/permissions', handler: new PermissionRoutes().router },
       { path: '/audit-logs', handler: new AuditLogRoutes().router },
+      { path: '/leads', handler: new LeadRoutes().router },
+      { path: '/tasks', handler: new TaskRoutes().router },
     ];
 
     // Dynamically mount all API routes under /api/v1

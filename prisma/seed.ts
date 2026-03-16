@@ -1,9 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
-import { randomUUID } from 'crypto';
 
 dotenv.config();
 
@@ -129,6 +129,8 @@ const demoUsers = [
 ];
 
 async function ensureInfrastructure() {
+  // Tables are now handled by Prisma migrations
+  /*
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS user_permission_grants (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -153,6 +155,7 @@ async function ensureInfrastructure() {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  */
 }
 
 async function syncPermissions() {

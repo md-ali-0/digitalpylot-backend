@@ -2,9 +2,9 @@
 
 A robust Node.js enterprise server boilerplate with Express, TypeScript, Prisma ORM, PostgreSQL, Redis, and professional job queue management.
 
-## 🚀 Features
-
-- **Enterprise-ready Architecture**: Clean and scalable project structure.
+- **CRM Module**: Full Leads and Tasks management with CRUD, search, and filtering.
+- **Reporting & Analytics**: Automated lead performance and task productivity aggregation.
+- **Dashboard API**: Real-time statistics for users, leads, tasks, and system counts.
 - **Authentication & RBAC**: JWT-based auth with Role-Based Access Control.
 - **Prisma ORM**: Type-safe database queries with PostgreSQL.
 - **Job Queues**: BullMQ & Redis for high-performance background tasks (Email, Clicks, Postbacks).

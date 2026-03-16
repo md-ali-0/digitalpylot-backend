@@ -3,11 +3,7 @@ import prisma from '@config/db';
 import { BaseService } from '@core/base.service';
 import { ApiError } from '@core/error.classes';
 import { Prisma } from '@prisma/client';
-import {
-  calculatePagination,
-  createPaginationMeta,
-  GetAllOptions,
-} from '@utils/pagination.util';
+import { calculatePagination, createPaginationMeta, GetAllOptions } from '@utils/pagination.util';
 import { PasswordUtil } from '@utils/password.util';
 import { sanitizeSearchInput } from '@utils/sanitize.util';
 import { USER_ALLOWED_FILTERS } from './user.constants';
@@ -246,7 +242,14 @@ export class UserService extends BaseService {
   }
 
   async updateUserProfile(userId: string, updateData: any) {
-    return this.update(userId, updateData);
+    const { email, password, role: _role, ...rest } = updateData;
+    // Prevent sensitive fields from being updated via simple profile update
+    if (email) delete rest.email;
+    if (password) {
+      rest.passwordHash = await PasswordUtil.hashPassword(password);
+    }
+
+    return this.update(userId, rest);
   }
 
   async getCurrentUserProfile(userId: string) {
