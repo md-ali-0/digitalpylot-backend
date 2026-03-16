@@ -19,6 +19,7 @@ import { NotFoundRoutes } from '@routes/not-found.routes';
 import { DatabasePoolMonitor } from '@utils/db-monitor';
 import { performanceMiddleware } from '@utils/performance';
 import { RbacService } from '@services/rbac.service';
+import logger from '@config/winston';
 import compression from 'compression';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -36,7 +37,11 @@ class App {
 
   constructor() {
     this.app = express();
-    void RbacService.ensureInfrastructure();
+    void RbacService.ensureInfrastructure().catch((error) => {
+      logger.warn('RBAC infrastructure init skipped during startup', {
+        message: error instanceof Error ? error.message : 'Unknown database error',
+      });
+    });
     this.initializeMiddlewares();
     this.initializeRoutes();
     this.initializeErrorHandling();

@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "dev": "nodemon --exec tsx --require tsconfig-paths/register src/server.ts",
     "dev:full": "tsx --require tsconfig-paths/register src/server.ts --watch",
-    "build": "tsc --project tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/copy-templates.js",
+    "build": "prisma generate && tsc --project tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/copy-templates.js",
     "build:dev": "tsc --project tsconfig.json && tsc-alias -p tsconfig.json",
     "build:deploy": "npm run build && npm run prisma:migrate:deploy && npm run prisma:seed",
     "prisma:migrate:deploy": "prisma migrate deploy",
@@ -24,7 +24,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --maxWorkers=2",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
