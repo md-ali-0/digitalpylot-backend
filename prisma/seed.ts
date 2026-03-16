@@ -1,8 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
 
 dotenv.config();
 
@@ -15,294 +16,351 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+const tenantId = 'default';
+
+const permissionDefinitions = [
+  { name: 'dashboard:read', description: 'View the dashboard' },
+  { name: 'users:read', description: 'View users' },
+  { name: 'users:create', description: 'Create users' },
+  { name: 'users:update', description: 'Update users' },
+  { name: 'users:delete', description: 'Delete users' },
+  { name: 'users:suspend', description: 'Suspend users' },
+  { name: 'users:ban', description: 'Ban users' },
+  { name: 'permissions:read', description: 'View permission assignments' },
+  { name: 'permissions:manage', description: 'Manage permission assignments' },
+  { name: 'leads:read', description: 'View leads' },
+  { name: 'leads:create', description: 'Create leads' },
+  { name: 'leads:update', description: 'Update leads' },
+  { name: 'leads:assign', description: 'Assign leads' },
+  { name: 'leads:delete', description: 'Delete leads' },
+  { name: 'tasks:read', description: 'View tasks' },
+  { name: 'tasks:create', description: 'Create tasks' },
+  { name: 'tasks:update', description: 'Update tasks' },
+  { name: 'tasks:delete', description: 'Delete tasks' },
+  { name: 'reports:read', description: 'View reports' },
+  { name: 'reports:export', description: 'Export reports' },
+  { name: 'audit:read', description: 'View audit logs' },
+  { name: 'settings:read', description: 'View settings' },
+  { name: 'customer_portal:read', description: 'Access the customer portal' },
+];
+
+const roleDefinitions = [
+  {
+    name: 'Admin',
+    permissions: permissionDefinitions.map((permission) => permission.name),
+  },
+  {
+    name: 'Manager',
+    permissions: [
+      'dashboard:read',
+      'users:read',
+      'users:create',
+      'users:update',
+      'users:suspend',
+      'permissions:read',
+      'permissions:manage',
+      'leads:read',
+      'leads:create',
+      'leads:update',
+      'leads:assign',
+      'tasks:read',
+      'tasks:create',
+      'tasks:update',
+      'reports:read',
+      'audit:read',
+      'settings:read',
+    ],
+  },
+  {
+    name: 'Agent',
+    permissions: [
+      'dashboard:read',
+      'leads:read',
+      'leads:update',
+      'tasks:read',
+      'tasks:create',
+      'tasks:update',
+      'reports:read',
+    ],
+  },
+  {
+    name: 'Customer',
+    permissions: ['dashboard:read', 'customer_portal:read'],
+  },
+];
+
+const demoUsers = [
+  {
+    email: 'admin@digitalpylot.com',
+    password: 'Admin@12345',
+    name: 'Platform Admin',
+    roleName: 'Admin',
+    userType: UserRole.ADMIN,
+    status: 'ACTIVE',
+    directPermissions: [],
+  },
+  {
+    email: 'manager@digitalpylot.com',
+    password: 'Manager@12345',
+    name: 'Team Manager',
+    roleName: 'Manager',
+    userType: UserRole.USER,
+    status: 'ACTIVE',
+    directPermissions: ['reports:export'],
+  },
+  {
+    email: 'agent@digitalpylot.com',
+    password: 'Agent@12345',
+    name: 'Support Agent',
+    roleName: 'Agent',
+    userType: UserRole.USER,
+    status: 'ACTIVE',
+    directPermissions: ['users:read'],
+  },
+  {
+    email: 'customer@digitalpylot.com',
+    password: 'Customer@12345',
+    name: 'Customer Portal User',
+    roleName: 'Customer',
+    userType: UserRole.USER,
+    status: 'ACTIVE',
+    directPermissions: [],
+  },
+];
+
+async function ensureInfrastructure() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS user_permission_grants (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      permission_name TEXT NOT NULL,
+      granted_by TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, permission_name)
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT NOT NULL PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      user_id TEXT,
+      action TEXT NOT NULL,
+      resource_type TEXT NOT NULL,
+      resource_id TEXT,
+      changes JSONB,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+async function syncPermissions() {
+  const permissionIdsByName = new Map<string, string>();
+
+  for (const definition of permissionDefinitions) {
+    const existing = await prisma.permission.findFirst({
+      where: { name: definition.name },
+    });
+
+    const permission = existing
+      ? await prisma.permission.update({
+          where: { id: existing.id },
+          data: { description: definition.description },
+        })
+      : await prisma.permission.create({
+          data: {
+            name: definition.name,
+            description: definition.description,
+          },
+        });
+
+    permissionIdsByName.set(definition.name, permission.id);
+  }
+
+  return permissionIdsByName;
+}
+
+async function syncRoles(permissionIdsByName: Map<string, string>) {
+  const roleIdsByName = new Map<string, string>();
+
+  for (const definition of roleDefinitions) {
+    const existing = await prisma.role.findFirst({
+      where: { name: { equals: definition.name, mode: 'insensitive' } },
+    });
+
+    const role = existing
+      ? await prisma.role.update({
+          where: { id: existing.id },
+          data: { name: definition.name },
+        })
+      : await prisma.role.create({
+          data: { name: definition.name },
+        });
+
+    roleIdsByName.set(definition.name, role.id);
+
+    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+
+    for (const permissionName of definition.permissions) {
+      const permissionId = permissionIdsByName.get(permissionName);
+      if (!permissionId) {
+        throw new Error(`Permission not found while assigning role: ${permissionName}`);
+      }
+
+      await prisma.rolePermission.create({
+        data: {
+          roleId: role.id,
+          permissionId,
+        },
+      });
+    }
+  }
+
+  return roleIdsByName;
+}
+
+async function syncUsers(roleIdsByName: Map<string, string>) {
+  const adminUser = demoUsers[0];
+  let adminUserId = '';
+
+  for (const definition of demoUsers) {
+    const passwordHash = await bcrypt.hash(definition.password, 10);
+    const roleId = roleIdsByName.get(definition.roleName);
+
+    if (!roleId) {
+      throw new Error(`Role not found while creating user: ${definition.roleName}`);
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: {
+        tenantId_email: {
+          tenantId,
+          email: definition.email,
+        },
+      },
+      include: {
+        userRoles: true,
+      },
+    });
+
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: definition.name,
+            passwordHash,
+            userType: definition.userType,
+            status: definition.status,
+            emailVerified: true,
+            deletedAt: null,
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            tenantId,
+            email: definition.email,
+            name: definition.name,
+            passwordHash,
+            userType: definition.userType,
+            status: definition.status,
+            emailVerified: true,
+          },
+        });
+
+    await prisma.userRoleAssignment.deleteMany({ where: { userId: user.id } });
+    await prisma.userRoleAssignment.create({
+      data: {
+        userId: user.id,
+        roleId,
+      },
+    });
+
+    await prisma.$executeRaw`
+      DELETE FROM user_permission_grants
+      WHERE user_id = ${user.id}
+    `;
+
+    for (const permissionName of definition.directPermissions) {
+      await prisma.$executeRaw`
+        INSERT INTO user_permission_grants (user_id, permission_name, granted_by)
+        VALUES (${user.id}, ${permissionName}, ${adminUserId || user.id})
+      `;
+    }
+
+    if (definition.email === adminUser.email) {
+      adminUserId = user.id;
+    }
+  }
+
+  if (!adminUserId) {
+    throw new Error('Admin seed user was not created correctly');
+  }
+
+  await prisma.$executeRaw`
+    DELETE FROM user_permission_grants
+    WHERE granted_by = ''
+  `;
+
+  await prisma.$executeRaw`
+    UPDATE user_permission_grants
+    SET granted_by = ${adminUserId}
+    WHERE granted_by IS NULL
+  `;
+
+  await prisma.$executeRaw`
+    DELETE FROM audit_logs
+    WHERE tenant_id = ${tenantId}
+      AND action = 'SEED_BOOTSTRAP'
+  `;
+
+  await prisma.$executeRaw`
+    INSERT INTO audit_logs (
+      id,
+      tenant_id,
+      user_id,
+      action,
+      resource_type,
+      resource_id,
+      changes
+    ) VALUES (
+      ${randomUUID()},
+      ${tenantId},
+      ${adminUserId},
+      ${'SEED_BOOTSTRAP'},
+      ${'System'},
+      ${'rbac-demo-seed'},
+      CAST(${JSON.stringify({
+        users: demoUsers.map((user) => ({
+          email: user.email,
+          role: user.roleName,
+          directPermissions: user.directPermissions,
+        })),
+      })} AS jsonb)
+    )
+  `;
+}
+
 async function main() {
-  console.log('🌱 Seeding database...\n');
+  console.log('Seeding current RBAC dataset...\n');
 
-  // ================================
-  // 1. CREATE PLATFORM TENANT (for Super Admins only)
-  // ================================
-  const platformTenant = await prisma.tenant.upsert({
-    where: { slug: 'platform' },
-    update: {},
-    create: {
-      name: 'Platform',
-      slug: 'platform',
-      status: 'ACTIVE',
-    },
-  });
+  await ensureInfrastructure();
+  const permissionIdsByName = await syncPermissions();
+  const roleIdsByName = await syncRoles(permissionIdsByName);
+  await syncUsers(roleIdsByName);
 
-  console.log('✅ Platform Tenant (Super Admin):', platformTenant.id);
-
-  // ================================
-  // 2. CREATE DEFAULT TENANT (for regular network operations)
-  // ================================
-  const defaultTenant = await prisma.tenant.upsert({
-    where: { slug: 'default' },
-    update: {},
-    create: {
-      name: 'Default Network',
-      slug: 'default',
-      status: 'ACTIVE',
-    },
-  });
-
-  console.log('✅ Default Tenant (Network):', defaultTenant.id);
-
-  // ================================
-  // 2. CREATE PERMISSIONS
-  // ================================
-  const permissions = [
-    'offer.read',
-    'offer.create',
-    'offer.update',
-    'offer.delete',
-    'report.read',
-    'affiliate.read',
-    'affiliate.approve',
-    'advertiser.read',
-    'advertiser.approve',
-    'billing.read',
-    'billing.manage',
-    'tenant.manage', // Platform-level permission
-    'platform.settings', // Platform-level permission
-  ];
-
-  for (const p of permissions) {
-    await prisma.permission.upsert({
-      where: { id: p },
-      update: {},
-      create: { id: p, description: `Permission for ${p}` },
-    });
-  }
-
-  console.log('✅ Created Permissions\n');
-
-  // ================================
-  // 3. CREATE SUPER ADMIN ROLE (Platform Owner)
-  // ================================
-  let superAdminRole = await prisma.role.findFirst({
-    where: {
-      name: 'Super Admin',
-      tenantId: platformTenant.id, // Platform tenant for Super Admins
-    },
-  });
-
-  if (!superAdminRole) {
-    superAdminRole = await prisma.role.create({
-      data: {
-        name: 'Super Admin',
-        tenantId: platformTenant.id, // Platform tenant
-        permissions: {
-          create: permissions.map((p) => ({ permissionId: p })),
-        },
-      },
-    });
-    console.log('✅ Created Super Admin Role (Platform):', superAdminRole.id);
-  } else {
-    console.log('ℹ️  Super Admin Role already exists:', superAdminRole.id);
-  }
-
-  // ================================
-  // 4. CREATE ADMIN ROLE (Tenant Manager)
-  // ================================
-  const adminPermissions = permissions.filter(
-    (p) => !p.startsWith('tenant.') && !p.startsWith('platform.'),
-  );
-
-  let adminRole = await prisma.role.findFirst({
-    where: {
-      name: 'Admin',
-      tenantId: defaultTenant.id, // Default tenant for Admins
-    },
-  });
-
-  if (!adminRole) {
-    adminRole = await prisma.role.create({
-      data: {
-        name: 'Admin',
-        tenantId: defaultTenant.id, // Default tenant
-        permissions: {
-          create: adminPermissions.map((p) => ({ permissionId: p })),
-        },
-      },
-    });
-    console.log('✅ Created Admin Role (Network):', adminRole.id);
-  } else {
-    console.log('ℹ️  Admin Role already exists:', adminRole.id);
-  }
-
-  console.log('');
-
-  // ================================
-  // 5. CREATE SUPER ADMIN USER (Platform Level)
-  // ================================
-  const existingSuperAdmin = await prisma.user.findUnique({
-    where: {
-      tenantId_email: {
-        tenantId: platformTenant.id, // Platform tenant
-        email: 'superadmin@platform.com',
-      },
-    },
-  });
-
-  if (!existingSuperAdmin) {
-    const superAdminPassword = 'superadmin@123';
-    const superAdminHash = await bcrypt.hash(superAdminPassword, 10);
-
-    await prisma.user.create({
-      data: {
-        email: 'superadmin@platform.com',
-        name: 'Super Administrator',
-        tenantId: platformTenant.id, // Platform tenant
-        passwordHash: superAdminHash,
-        status: 'ACTIVE',
-        emailVerified: true,
-        userType: 'SUPER_ADMIN',
-        userRoles: {
-          create: { roleId: superAdminRole.id },
-        },
-      },
-    });
-    console.log('✅ Created Super Admin User (Platform Level)');
-    console.log('   📧 Email: superadmin@platform.com');
-    console.log('   🔑 Password: superadmin@123');
-  } else {
-    console.log('ℹ️  Super Admin user already exists');
-  }
-
-  // ================================
-  // 6. CREATE ADMIN USER (Network Level)
-  // ================================
-  const existingAdmin = await prisma.user.findUnique({
-    where: {
-      tenantId_email: {
-        tenantId: defaultTenant.id, // Default tenant
-        email: 'admin@default.com',
-      },
-    },
-  });
-
-  if (!existingAdmin) {
-    const adminPassword = 'admin@123';
-    const adminHash = await bcrypt.hash(adminPassword, 10);
-
-    await prisma.user.create({
-      data: {
-        email: 'admin@default.com',
-        name: 'Network Administrator',
-        tenantId: defaultTenant.id, // Default tenant
-        passwordHash: adminHash,
-        status: 'ACTIVE',
-        emailVerified: true,
-        userType: 'ADMIN',
-        userRoles: {
-          create: { roleId: adminRole.id },
-        },
-      },
-    });
-    console.log('✅ Created Admin User (Network Level)');
-    console.log('   📧 Email: admin@default.com');
-    console.log('   🔑 Password: admin@123');
-  } else {
-    console.log('ℹ️  Admin user already exists');
-  }
-
-  // ================================
-  // 7. CREATE SUBSCRIPTION PLANS
-  // ================================
-  const subscriptionPlans = [
-    {
-      name: 'Free',
-      slug: 'free',
-      description: 'Basic plan for getting started. Limited features.',
-      price: 0,
-      billingCycle: 'MONTHLY' as const,
-      maxAffiliates: 10,
-      maxOffers: 5,
-      maxClicks: 1000,
-      features: { analytics: false, customDomain: false, apiAccess: false, prioritySupport: false },
-    },
-    {
-      name: 'Starter',
-      slug: 'starter',
-      description: 'For small teams getting started with affiliate marketing.',
-      price: 29,
-      billingCycle: 'MONTHLY' as const,
-      maxAffiliates: 50,
-      maxOffers: 25,
-      maxClicks: 10000,
-      features: { analytics: true, customDomain: false, apiAccess: false, prioritySupport: false },
-    },
-    {
-      name: 'Pro',
-      slug: 'pro',
-      description: 'For growing businesses with advanced needs.',
-      price: 79,
-      billingCycle: 'MONTHLY' as const,
-      maxAffiliates: 500,
-      maxOffers: 100,
-      maxClicks: 100000,
-      features: { analytics: true, customDomain: true, apiAccess: true, prioritySupport: false },
-    },
-    {
-      name: 'Enterprise',
-      slug: 'enterprise',
-      description: 'For large-scale operations with unlimited capacity.',
-      price: 199,
-      billingCycle: 'MONTHLY' as const,
-      maxAffiliates: null,
-      maxOffers: null,
-      maxClicks: null,
-      features: { analytics: true, customDomain: true, apiAccess: true, prioritySupport: true },
-    },
-  ];
-
-  for (const plan of subscriptionPlans) {
-    await prisma.subscriptionPlan.upsert({
-      where: { slug: plan.slug },
-      update: {},
-      create: {
-        name: plan.name,
-        slug: plan.slug,
-        description: plan.description,
-        price: plan.price,
-        billingCycle: plan.billingCycle,
-        maxAffiliates: plan.maxAffiliates,
-        maxOffers: plan.maxOffers,
-        maxClicks: plan.maxClicks,
-        features: plan.features,
-        isActive: true,
-      },
-    });
-  }
-
-  console.log('✅ Created Subscription Plans (Free, Starter, Pro, Enterprise)\n');
-
-  console.log('\n🎉 Seeding completed successfully!\n');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📋 LOGIN CREDENTIALS:');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log('🔐 SUPER ADMIN (Platform Owner - "platform" tenant):');
-  console.log('   Email: superadmin@platform.com');
-  console.log('   Password: superadmin@123');
-  console.log('   Tenant: platform');
-  console.log('   Access: Manages ALL tenants + platform settings');
-  console.log('');
-  console.log('👤 ADMIN (Network Manager - "default" tenant):');
-  console.log('   Email: admin@default.com');
-  console.log('   Password: admin@123');
-  console.log('   Tenant: default');
-  console.log('   Access: Manages "default" network only');
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('⚠️  Please change these passwords after first login!');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  console.log('Seed completed successfully.\n');
+  console.log('Demo login credentials:');
+  console.log('Admin    -> admin@digitalpylot.com / Admin@12345');
+  console.log('Manager  -> manager@digitalpylot.com / Manager@12345');
+  console.log('Agent    -> agent@digitalpylot.com / Agent@12345');
+  console.log('Customer -> customer@digitalpylot.com / Customer@12345');
+  console.log(`Tenant header/value: ${tenantId}`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exit(1);
   })
   .finally(async () => {
