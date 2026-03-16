@@ -49,6 +49,7 @@ export class AuthRoutes {
     this.router.post('/login', authRateLimiter, validate(loginSchema), this.authController.login);
     this.router.post('/logout', authenticate, this.authController.logout);
     this.router.post('/refresh-token', authRateLimiter, this.authController.refreshToken);
+    this.router.get('/profile', authenticate, this.authController.profile);
 
     // Email verification routes
     this.router.post('/verify-email', validate(verifyEmailSchema), this.authController.verifyEmail);

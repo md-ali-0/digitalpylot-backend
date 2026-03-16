@@ -17,6 +17,7 @@ export interface AccessTokenPayload {
   email: string;
   roles: string[];
   tenantId: string;
+  permissions?: string[];
 }
 
 export interface RefreshTokenPayload {

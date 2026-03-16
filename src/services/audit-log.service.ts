@@ -1,5 +1,5 @@
-import prisma from '@config/db';
 import logger from '@config/winston';
+import { RbacService } from './rbac.service';
 
 interface AuditLogData {
   userId: string;
@@ -34,16 +34,15 @@ export class AuditLogService {
       });
 
       // Store in database
-      await prisma.auditLog.create({
-        data: {
-          userId: data.userId,
-          action: data.action,
-          resourceType: data.resourceType,
-          resourceId: data.resourceId,
-          changes: data.metadata as any,
-          ipAddress: data.ipAddress,
-          tenantId: data.tenantId || 'SYSTEM', // Added tenantId with fallback
-        },
+      await RbacService.createAuditLog({
+        userId: data.userId,
+        tenantId: data.tenantId || 'SYSTEM',
+        action: data.action,
+        resourceType: data.resourceType,
+        resourceId: data.resourceId,
+        changes: data.metadata,
+        ipAddress: data.ipAddress,
+        userAgent: data.userAgent,
       });
     } catch (error) {
       logger.error('Failed to create audit log', {

@@ -18,6 +18,7 @@ import { MainRouter } from '@routes/index';
 import { NotFoundRoutes } from '@routes/not-found.routes';
 import { DatabasePoolMonitor } from '@utils/db-monitor';
 import { performanceMiddleware } from '@utils/performance';
+import { RbacService } from '@services/rbac.service';
 import compression from 'compression';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -35,6 +36,7 @@ class App {
 
   constructor() {
     this.app = express();
+    void RbacService.ensureInfrastructure();
     this.initializeMiddlewares();
     this.initializeRoutes();
     this.initializeErrorHandling();

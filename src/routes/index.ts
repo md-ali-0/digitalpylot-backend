@@ -1,6 +1,8 @@
+import { AuditLogRoutes } from '@modules/audit-log/audit-log.routes';
 import { AuthRoutes } from '@modules/auth/auth.routes';
 import { FileRoutes } from '@modules/file/file.routes';
 import { NotificationRoutes } from '@modules/notification/notification.routes';
+import { PermissionRoutes } from '@modules/permission/permission.routes';
 import { RoleRoutes } from '@modules/role/role.route';
 import { UserRoutes } from '@modules/user/user.routes';
 import { HealthRoutes } from '@routes/health.routes';
@@ -36,6 +38,8 @@ export class MainRouter {
 
       // New Role Modules
       { path: '/roles', handler: new RoleRoutes().router },
+      { path: '/permissions', handler: new PermissionRoutes().router },
+      { path: '/audit-logs', handler: new AuditLogRoutes().router },
     ];
 
     // Dynamically mount all API routes under /api/v1

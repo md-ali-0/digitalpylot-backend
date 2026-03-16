@@ -6,6 +6,7 @@ import { ApiError } from '@core/error.classes';
 import { addPasswordResetEmailJob } from '@jobs/queue';
 import { UserRole } from '@prisma/client';
 import emailService from '@services/email.service';
+import { RbacService } from '@services/rbac.service';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils/jwt.util';
 
 import { PasswordUtil } from '@utils/password.util';
@@ -562,12 +563,14 @@ export class AuthService extends BaseService {
     await logHistory(true);
 
     const roles = user.userRoles.map((ur: any) => ur.role.name);
+    const resolvedPermissions = await RbacService.resolveEffectivePermissions(user.id);
 
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
       roles: roles,
       tenantId: user.tenantId,
+      permissions: resolvedPermissions.permissions,
     });
 
     const refreshToken = generateRefreshToken({
@@ -587,6 +590,7 @@ export class AuthService extends BaseService {
         email: user.email,
         name: user.name,
         roles: roles,
+        permissions: resolvedPermissions.permissions,
         tenantId: user.tenantId,
         status: user.status,
       },
@@ -832,12 +836,14 @@ export class AuthService extends BaseService {
         throw ApiError.Unauthorized('Refresh token revoked', 'auth.refresh_token_revoked');
 
       const roles = user.userRoles.map((ur) => ur.role.name);
+      const resolvedPermissions = await RbacService.resolveEffectivePermissions(user.id);
 
       const newAccessToken = generateAccessToken({
         userId: user.id,
         email: user.email,
         roles: roles,
         tenantId: user.tenantId,
+        permissions: resolvedPermissions.permissions,
       });
 
       const newRefreshToken = generateRefreshToken({
@@ -849,6 +855,15 @@ export class AuthService extends BaseService {
       return {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          roles,
+          permissions: resolvedPermissions.permissions,
+          tenantId: user.tenantId,
+          status: user.status,
+        },
       };
     } catch {
       throw ApiError.Unauthorized('Invalid refresh token', 'invalid_refresh_token');

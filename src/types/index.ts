@@ -13,6 +13,7 @@ declare global {
       id: string;
       email: string;
       role: Role;
+      roles?: string[];
       status: string;
       tenantId: string;
       permissions?: string[];

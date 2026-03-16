@@ -193,7 +193,7 @@ export class AuthController extends BaseController {
         });
       }
 
-      const { accessToken, refreshToken: newRefreshToken } =
+      const { accessToken, refreshToken: newRefreshToken, user } =
         await this.authService.refreshAccessToken(refreshToken);
 
       res.cookie('accessToken', accessToken, {
@@ -212,6 +212,22 @@ export class AuthController extends BaseController {
 
       this.sendResponse(res, {
         message: i18n.__('auth.token_refresh_success'),
+        data: {
+          accessToken,
+          refreshToken: newRefreshToken,
+          user,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  profile = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      this.sendResponse(res, {
+        message: i18n.__('user.profile_fetch_success'),
+        data: req.user,
       });
     } catch (error) {
       next(error);

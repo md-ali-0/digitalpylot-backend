@@ -1,4 +1,4 @@
-import { authenticate } from '@middlewares/auth.middleware';
+import { authenticate, authorizePermissions } from '@middlewares/auth.middleware';
 import { validate } from '@middlewares/validation.middleware';
 import { Router } from 'express';
 import { RoleController } from './role.controller';
@@ -17,19 +17,31 @@ export class RoleRoutes {
   private initializeRoutes() {
     this.router.use(authenticate); // Require authentication for all
 
-    // TODO: Add permission checks (e.g. 'role.read', 'role.manage')
-    // For now, allow authenticated users (or restrict to ADMIN)
-    // this.router.use(authorizeRoles([UserRole.ADMIN])); // If reusing enum or string check
-
-    this.router.get('/', this.controller.getRoles);
-    this.router.get('/:id', validate(roleIdSchema), this.controller.getRole);
-    this.router.post('/', validate(createRoleSchema), this.controller.createRole);
+    this.router.get('/', authorizePermissions(['permissions:read']), this.controller.getRoles);
+    this.router.get(
+      '/:id',
+      authorizePermissions(['permissions:read']),
+      validate(roleIdSchema),
+      this.controller.getRole,
+    );
+    this.router.post(
+      '/',
+      authorizePermissions(['permissions:manage']),
+      validate(createRoleSchema),
+      this.controller.createRole,
+    );
     this.router.patch(
       '/:id',
+      authorizePermissions(['permissions:manage']),
       validate(roleIdSchema),
       validate(updateRoleSchema),
       this.controller.updateRole,
     );
-    this.router.delete('/:id', validate(roleIdSchema), this.controller.deleteRole);
+    this.router.delete(
+      '/:id',
+      authorizePermissions(['permissions:manage']),
+      validate(roleIdSchema),
+      this.controller.deleteRole,
+    );
   }
 }

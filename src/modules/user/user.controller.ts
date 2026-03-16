@@ -1,6 +1,7 @@
 import { HTTP_STATUS } from '@config/constants';
 import i18n from '@config/i18n-compat';
 import { BaseController } from '@core/base.controller';
+import { RbacService } from '@services/rbac.service';
 import { GetAllOptions } from '@utils/pagination.util';
 import type { Request, Response } from 'express';
 import { UserService } from './user.service';
@@ -36,6 +37,14 @@ export class UserController extends BaseController {
       statusCode: HTTP_STATUS.OK,
       data: users.data,
       meta: users.meta,
+    });
+  });
+
+  getById = this.catchAsync(async (req: Request, res: Response) => {
+    const user = await this.userService.findById(req.params.id as string);
+    this.sendResponse(res, {
+      message: i18n.__('user.fetch_success'),
+      data: user,
     });
   });
   /**
@@ -118,6 +127,29 @@ export class UserController extends BaseController {
     this.sendResponse(res, {
       message: i18n.__('user.updated'),
       data: updatedUser,
+    });
+  });
+
+  getPermissions = this.catchAsync(async (req: Request, res: Response) => {
+    const data = await RbacService.getUserPermissionAssignment(req.params.id as string);
+    this.sendResponse(res, {
+      message: i18n.__('role.fetch_success'),
+      data,
+    });
+  });
+
+  updatePermissions = this.catchAsync(async (req: Request, res: Response) => {
+    const data = await RbacService.updateUserPermissions({
+      actorId: req.user!.id,
+      targetUserId: req.params.id as string,
+      permissionNames: req.body.permissionNames || [],
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    this.sendResponse(res, {
+      message: i18n.__('role.update_success'),
+      data,
     });
   });
 

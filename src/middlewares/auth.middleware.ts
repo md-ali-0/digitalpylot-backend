@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import logger from '@config/winston';
 import { ApiError } from '@core/error.classes';
+import { RbacService } from '@services/rbac.service';
 import { verifyAccessToken } from '@utils/jwt.util';
 import { NextFunction, Request, Response } from 'express';
 import prisma from '../config/db';
@@ -74,16 +75,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return next(ApiError.Unauthorized('Token tenant mismatch', 'auth.token_mismatch'));
     }
 
-    // Collect Permissions
-    const permissions = new Set<string>();
-    const roles = new Set<string>();
-
-    user.userRoles.forEach((ur) => {
-      roles.add(ur.role.name);
-      ur.role.permissions.forEach((rp) => {
-        permissions.add(rp.permission.id);
-      });
-    });
+    const resolvedPermissions = await RbacService.resolveEffectivePermissions(user.id);
+    const roles = new Set<string>(resolvedPermissions.roles);
 
     // Vendor Info (Legacy Mapping)
     let additionalInfo = undefined;
@@ -104,7 +97,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       id: user.id,
       email: user.email,
       roles: Array.from(roles), // Now array of strings
-      permissions: Array.from(permissions), // Full permission list
+      permissions: resolvedPermissions.permissions,
       status: user.status,
       tenantId: user.tenantId,
       profile: additionalInfo,
@@ -155,16 +148,8 @@ export const optionalAuthenticate = async (req: Request, res: Response, next: Ne
           return next();
         }
 
-        // Collect Permissions
-        const permissions = new Set<string>();
-        const roles = new Set<string>();
-
-        user.userRoles.forEach((ur) => {
-          roles.add(ur.role.name);
-          ur.role.permissions.forEach((rp) => {
-            permissions.add(rp.permission.id);
-          });
-        });
+        const resolvedPermissions = await RbacService.resolveEffectivePermissions(user.id);
+        const roles = new Set<string>(resolvedPermissions.roles);
 
         let additionalInfo = undefined;
         const isAdvertiser = roles.has('Advertiser') || roles.has('ADVERTISER');
@@ -183,7 +168,7 @@ export const optionalAuthenticate = async (req: Request, res: Response, next: Ne
 
           email: user.email,
           roles: Array.from(roles),
-          permissions: Array.from(permissions),
+          permissions: resolvedPermissions.permissions,
           status: user.status,
           tenantId: user.tenantId,
           profile: additionalInfo,
@@ -233,6 +218,28 @@ export const authorizeRoles = (allowedRoles: Role[]) => {
     if (!hasRole) {
       return next(ApiError.Forbidden('Insufficient role', 'auth.insufficient_role'));
     }
+    next();
+  };
+};
+
+export const authorizePermissions = (requiredPermissions: string | string[]) => {
+  const permissions = Array.isArray(requiredPermissions)
+    ? requiredPermissions
+    : [requiredPermissions];
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const userPermissions = (req.user?.permissions || []) as string[];
+
+    const hasPermission = permissions.every((permission) => userPermissions.includes(permission));
+    if (!hasPermission) {
+      return next(
+        ApiError.Forbidden(
+          `Missing required permission: ${permissions.join(', ')}`,
+          'auth.insufficient_permission',
+        ),
+      );
+    }
+
     next();
   };
 };

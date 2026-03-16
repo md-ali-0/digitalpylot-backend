@@ -1,12 +1,9 @@
 import { ApiError } from '@core/error.classes';
 import type { NextFunction, Request, Response } from 'express';
 
-/**
- * Middleware to validate CUID format in route parameters
- * CUID format: starts with 'c', followed by timestamp and random string
- * Example: ckl3q3q3q0000qzqz3q3q3q3q
- * @param paramName - The name of the parameter to validate (default: 'id')
- */
+const cuidRegex = /^c[a-z0-9]{24}$/i;
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const validateCUID = (paramName: string = 'id') => {
   return (req: Request, res: Response, next: NextFunction) => {
     const value = req.params[paramName];
@@ -17,12 +14,12 @@ export const validateCUID = (paramName: string = 'id') => {
       );
     }
 
-    // CUID regex pattern: starts with 'c', length 25, alphanumeric
-    const cuidRegex = /^c[a-z0-9]{24}$/i;
-
-    if (!cuidRegex.test(value as string)) {
+    if (!cuidRegex.test(value as string) && !uuidRegex.test(value as string)) {
       return next(
-        ApiError.BadRequest(`Invalid ${paramName} format. Expected CUID.`, 'validation.invalid_id'),
+        ApiError.BadRequest(
+          `Invalid ${paramName} format. Expected CUID or UUID.`,
+          'validation.invalid_id',
+        ),
       );
     }
 
@@ -45,12 +42,10 @@ export const validateCUIDs = (...paramNames: string[]) => {
         );
       }
 
-      const cuidRegex = /^c[a-z0-9]{24}$/i;
-
-      if (!cuidRegex.test(value as string)) {
+      if (!cuidRegex.test(value as string) && !uuidRegex.test(value as string)) {
         return next(
           ApiError.BadRequest(
-            `Invalid ${paramName} format. Expected CUID.`,
+            `Invalid ${paramName} format. Expected CUID or UUID.`,
             'validation.invalid_id',
           ),
         );
