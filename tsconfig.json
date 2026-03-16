@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@constants/*": ["src/constants/*"],
       "@config/*": ["src/config/*"],
       "@modules/*": ["src/modules/*"],
       "@middlewares/*": ["src/middlewares/*"],

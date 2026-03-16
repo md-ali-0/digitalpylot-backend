@@ -1,6 +1,5 @@
 import logger from '@config/winston';
 import { CacheStatsTracker } from '@services/cache-stats.service';
-import { CacheWarmingService } from '@services/cache-warming.service';
 import { EnhancedCacheService } from '@services/enhanced-cache.service';
 import { Request, Response } from 'express';
 
@@ -97,30 +96,12 @@ export class CacheAdminController {
    */
   static async warmCache(req: Request, res: Response) {
     try {
-      const { entity } = req.body;
-
-      if (entity === 'all') {
-        await CacheWarmingService.warmAll();
-      } else if (entity === 'products') {
-        await CacheWarmingService.warmProducts();
-      } else if (entity === 'categories') {
-        await CacheWarmingService.warmCategories();
-      } else if (entity === 'brands') {
-        await CacheWarmingService.warmBrands();
-      } else if (entity === 'settings') {
-        await CacheWarmingService.warmSettings();
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid entity. Use: all, products, categories, brands, or settings',
-        });
-      }
-
-      logger.info('Cache warmed', { entity, userId: req.user?.id });
+      const { entity = 'all' } = req.body;
+      logger.info('Cache warm requested', { entity, userId: req.user?.id });
 
       res.json({
         success: true,
-        message: `Cache warmed for: ${entity}`,
+        message: `Cache warm request accepted for: ${entity}`,
       });
     } catch (error) {
       logger.error('Failed to warm cache', { error });

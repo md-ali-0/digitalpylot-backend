@@ -51,7 +51,7 @@ export class AuthController extends BaseController {
       const { body }: CompanyRegisterInput = req;
       const result = await this.authService.registerCompany(body);
       this.sendResponse(res, {
-        message: result.message,
+        message: i18n.__('auth.register_success'),
         data: result,
       });
     } catch (error) {
@@ -65,7 +65,7 @@ export class AuthController extends BaseController {
       const tenantId = req.headers['x-tenant-id'] as string;
       const result = await this.authService.registerAdvertiser({ ...body, tenantId });
       this.sendResponse(res, {
-        message: result.message,
+        message: i18n.__('auth.register_success'),
         data: result,
       });
     } catch (error) {

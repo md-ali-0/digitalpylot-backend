@@ -1,7 +1,6 @@
 import prisma from '@config/db';
 import { BaseService } from '@core/base.service';
 import { ApiError } from '@core/error.classes';
-import { Prisma } from '@prisma/client';
 import { CreateRoleBody, UpdateRoleBody } from './role.interface';
 
 export class RoleService extends BaseService {
@@ -9,11 +8,9 @@ export class RoleService extends BaseService {
     super(prisma.role);
   }
 
-  // Create Role
-  async createRole(tenantId: string, data: CreateRoleBody) {
-    // Check if role name exists in tenant
+  async createRole(_tenantId: string, data: CreateRoleBody) {
     const existing = await this.prisma.role.findFirst({
-      where: { tenantId, name: { equals: data.name, mode: 'insensitive' } },
+      where: { name: { equals: data.name, mode: 'insensitive' } },
     });
 
     if (existing) {
@@ -23,28 +20,25 @@ export class RoleService extends BaseService {
     const role = await this.prisma.role.create({
       data: {
         name: data.name,
-        tenantId,
         permissions: {
-          create: data.permissionIds.map((permId) => ({
-            permissionId: permId,
-          })),
+          create: data.permissionIds.map((permissionId) => ({ permissionId })),
         },
       },
       include: {
         permissions: { include: { permission: true } },
+        _count: { select: { users: true } },
       },
     });
 
     return {
       ...role,
-      permissions: role.permissions.map((p) => p.permission.id),
+      permissions: role.permissions.map((permission) => permission.permission.id),
+      usersCount: role._count.users,
     };
   }
 
-  // List Roles
-  async getRoles(tenantId: string) {
+  async getRoles(_tenantId: string) {
     const roles = await this.prisma.role.findMany({
-      where: { tenantId },
       include: {
         permissions: { include: { permission: true } },
         _count: { select: { users: true } },
@@ -54,86 +48,85 @@ export class RoleService extends BaseService {
 
     return roles.map((role) => ({
       ...role,
-      permissions: role.permissions.map((p) => p.permission.id),
+      permissions: role.permissions.map((permission) => permission.permission.id),
       usersCount: role._count.users,
     }));
   }
 
-  async getRoleById(tenantId: string, roleId: string) {
+  async getRoleById(_tenantId: string, roleId: string) {
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
       include: {
         permissions: { include: { permission: true } },
+        _count: { select: { users: true } },
       },
     });
 
-    if (!role || role.tenantId !== tenantId) {
+    if (!role) {
       throw ApiError.NotFound('Role not found', 'role.not_found');
     }
 
     return {
       ...role,
-      permissions: role.permissions.map((p) => p.permission.id),
+      permissions: role.permissions.map((permission) => permission.permission.id),
+      usersCount: role._count.users,
     };
   }
 
-  async updateRole(tenantId: string, roleId: string, data: UpdateRoleBody) {
+  async updateRole(_tenantId: string, roleId: string, data: UpdateRoleBody) {
     const role = await this.prisma.role.findUnique({ where: { id: roleId } });
-    if (!role || role.tenantId !== tenantId) {
+    if (!role) {
       throw ApiError.NotFound('Role not found', 'role.not_found');
     }
 
-    // If updating name, check uniqueness
     if (data.name && data.name !== role.name) {
       const existing = await this.prisma.role.findFirst({
-        where: { tenantId, name: { equals: data.name, mode: 'insensitive' }, id: { not: roleId } },
+        where: {
+          name: { equals: data.name, mode: 'insensitive' },
+          id: { not: roleId },
+        },
       });
       if (existing) {
         throw ApiError.Conflict('Role name already exists', 'role.exists');
       }
     }
 
-    // Update Role
-    const updateData: Prisma.RoleUpdateInput = {};
-    if (data.name) updateData.name = data.name;
-
-    // Update Permissions if provided
     if (data.permissionIds) {
-      // Delete existing permissions
-      // Then create new ones
-      // Prisma update doesn't have "replace" for many-to-many easily with explicit relation table
-      // We can delete all RolePermissions for this role and re-insert
-
-      await this.prisma.rolePermission.deleteMany({
-        where: { roleId },
-      });
-
-      updateData.permissions = {
-        create: data.permissionIds.map((pid) => ({ permissionId: pid })),
-      };
+      await this.prisma.rolePermission.deleteMany({ where: { roleId } });
     }
 
     const updatedRole = await this.prisma.role.update({
       where: { id: roleId },
-      data: updateData,
+      data: {
+        ...(data.name ? { name: data.name } : {}),
+        ...(data.permissionIds
+          ? {
+              permissions: {
+                create: data.permissionIds.map((permissionId) => ({ permissionId })),
+              },
+            }
+          : {}),
+      },
       include: {
         permissions: { include: { permission: true } },
+        _count: { select: { users: true } },
       },
     });
 
     return {
       ...updatedRole,
-      permissions: updatedRole.permissions.map((p) => p.permission.id),
+      permissions: updatedRole.permissions.map((permission) => permission.permission.id),
+      usersCount: updatedRole._count.users,
     };
   }
 
-  async deleteRole(tenantId: string, roleId: string) {
+  async deleteRole(_tenantId: string, roleId: string) {
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
       include: { _count: { select: { users: true } } },
     });
 
-    if (!role || role.tenantId !== tenantId) {
+    if (!role) {
       throw ApiError.NotFound('Role not found', 'role.not_found');
     }
 
@@ -142,7 +135,6 @@ export class RoleService extends BaseService {
     }
 
     await this.prisma.role.delete({ where: { id: roleId } });
-
     return true;
   }
 }

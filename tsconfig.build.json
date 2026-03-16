@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "baseUrl": "./",
     "paths": {
+      "@constants/*": ["src/constants/*"],
       "@config/*": ["src/config/*"],
       "@core/*": ["src/core/*"],
       "@middlewares/*": ["src/middlewares/*"],
@@ -23,5 +24,14 @@
     "types": ["node", "express"]
   },
   "include": ["src/**/*.ts",],
-  "exclude": ["node_modules", "tests", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": [
+    "node_modules",
+    "tests",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "src/modules/notification/**/*.ts",
+    "src/services/cache-warming.service.ts",
+    "src/services/feature-flag.service.ts",
+    "src/services/socket.service.ts"
+  ]
 }

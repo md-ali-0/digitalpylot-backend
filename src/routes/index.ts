@@ -1,7 +1,6 @@
 import { AuditLogRoutes } from '@modules/audit-log/audit-log.routes';
 import { AuthRoutes } from '@modules/auth/auth.routes';
 import { FileRoutes } from '@modules/file/file.routes';
-import { NotificationRoutes } from '@modules/notification/notification.routes';
 import { PermissionRoutes } from '@modules/permission/permission.routes';
 import { RoleRoutes } from '@modules/role/role.route';
 import { UserRoutes } from '@modules/user/user.routes';
@@ -34,7 +33,6 @@ export class MainRouter {
       { path: '/auth', handler: new AuthRoutes().router },
       { path: '/users', handler: new UserRoutes().router },
       { path: '/files', handler: new FileRoutes().router },
-      { path: '/notifications', handler: new NotificationRoutes().getRouter() },
 
       // New Role Modules
       { path: '/roles', handler: new RoleRoutes().router },

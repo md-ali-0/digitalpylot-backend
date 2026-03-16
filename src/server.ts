@@ -7,7 +7,6 @@ import env from '@config/env';
 import { closeSentry } from '@config/sentry';
 import logger from '@config/winston';
 import { clickWorker, emailWorker, postbackWorker } from '@jobs/worker'; // Import named exports
-import { socketService } from '@services/socket.service';
 import { createServer } from 'http';
 import app from './app';
 
@@ -17,9 +16,6 @@ let server: any;
 
 const startServer = () => {
   const httpServer = createServer(app);
-
-  // Initialize Socket.IO
-  socketService.initialize(httpServer);
 
   server = httpServer.listen(PORT, () => {
     logger.info(`Server running on port ${PORT} in ${env.NODE_ENV} mode`);
